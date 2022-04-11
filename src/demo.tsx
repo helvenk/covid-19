@@ -6,31 +6,33 @@ import {
   statistic,
   toExcel,
   downloadExcel,
-  CovidData,
   getLatestData,
+  markAsExported,
 } from './covid';
-import { formatDate } from './utils';
+import { formatDate, CovidData } from './utils';
 
 export default () => {
-  const [stat, setStat] = useState<Statistic & { options: CovidData[] }>();
+  const [stat, setStat] = useState<
+    Statistic & { options: CovidData[]; data: CovidData[]; current: CovidData }
+  >();
   const [selected, setSelected] = useState<CovidData>();
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const compare = async () => {
       setLoading(true);
-      const data = await getLatestData();
+      const data = stat?.data ?? (await getLatestData());
       const current = last(data)!;
       const options = reject(data, current);
       const prev = selected ?? last(options);
-      const stat = await statistic(current, prev);
-      setStat({ ...stat, options });
+      const results = statistic(current, prev);
+      setStat({ ...results, options, data, current });
       setSelected(prev);
       setLoading(false);
     };
 
     compare();
-  }, [selected]);
+  }, [selected, stat?.data]);
 
   const handleExport = async () => {
     if (stat) {
@@ -40,6 +42,8 @@ export default () => {
       }
       if (shouldDownload) {
         downloadExcel(await toExcel(stat));
+        const nextData = await markAsExported(stat.data, stat.current.create);
+        setStat((prev) => ({ ...prev, data: nextData } as any));
       }
     }
   };
@@ -51,23 +55,34 @@ export default () => {
   return (
     <div style={{ margin: 'auto', maxWidth: 1080 }}>
       {stat && (
-        <p style={{ display: 'flex', alignItems: 'center' }}>
-          <span>对比数据： </span>
-          <select
-            style={{ padding: 4, fontSize: 14 }}
-            value={selected?.create}
-            onChange={handleSelect}
-          >
-            {stat.options.map((data) => (
-              <option key={data.create} value={data.create}>
-                创建于{formatDate(data.create, 'M月D日HH:mm')}（更新于{formatDate(data.update, 'M月D日HH:mm')}）
-              </option>
-            ))}
-          </select>
-          <button style={{ marginLeft: 48 }} onClick={handleExport}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            maxWidth: 420,
+            margin: '1em 0',
+          }}
+        >
+          <div>
+            <span>对比数据： </span>
+            <select
+              style={{ padding: 4, fontSize: 14 }}
+              value={selected?.create}
+              onChange={handleSelect}
+            >
+              {stat.options.map((data) => (
+                <option key={data.create} value={data.create}>
+                  {formatDate(data.create, 'M月D日HH:mm')}
+                  {data.download && ' (已导出) '}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button style={{ whiteSpace: 'nowrap' }} onClick={handleExport}>
             导出为 Excel
           </button>
-        </p>
+        </div>
       )}
       {loading && <div>正在获取数据...</div>}
       {stat && !loading && (

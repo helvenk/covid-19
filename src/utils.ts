@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Cheerio, load, Element } from 'cheerio';
-import { entries, groupBy, isEqual, set, omit } from 'lodash';
+import { entries, groupBy, isEqual, set, omit, pick } from 'lodash';
 
 export const PROD_DATA_URL = '/covid/data';
 
@@ -34,11 +34,25 @@ export const isDev = typeof process !== 'undefined' && process.env.NODE_ENV === 
 
 export const isBrowser = typeof window !== 'undefined';
 
+export const isLocalDev = isDev && isBrowser;
+
+export type CovidData = {
+  high: Area[];
+  middle: Area[];
+  create: number;
+  update: number;
+  download?: boolean;
+};
+
 export async function fetchData() {
   const url = 'http://m.sh.bendibao.com/news/gelizhengce/fengxianmingdan.php';
   const finalUrl = isDev ? url.replace(/https?:\/\/[a-z\.]*?\//, '/') : url;
 
-  const result = await axios.get<string>(finalUrl, { responseType: 'text' });
+  const result = await axios.get<string>(finalUrl, {
+    responseType: 'text',
+    params: { t: Date.now() },
+    headers: { 'cache-control': 'no-cache' },
+  });
   const $ = load(result.data);
 
   const parseAreas = (element: Cheerio<Element>) => {
@@ -61,6 +75,9 @@ export async function fetchData() {
               if (/[(（]/.test(region)) {
                 region = '';
               }
+              if (region.endsWith('小区')) {
+                region = '';
+              }
               results.push({
                 province,
                 city,
@@ -78,7 +95,12 @@ export async function fetchData() {
   const high = parseAreas($('.height.info-item'));
   const middle = parseAreas($('.middle.info-item'));
 
-  return { time: new Date(time), high, middle };
+  return { create: Date.now(), update: new Date(time).getTime(), high, middle } as CovidData;
+}
+
+export function isEqualData(source: CovidData, target: CovidData) {
+  const props = ['high', 'middle'];
+  return isEqual(pick(source, props), pick(target, props));
 }
 
 export function groupAreas(data: Area[]): AreaGroup[] {
@@ -168,8 +190,12 @@ export function compareAreas(soure?: Area[], target?: Area[]) {
   if (!soure || !target) {
     return { add: [], remove: [] };
   }
+  const getAddr = ({ province, city, region, addr }: Area) =>
+    [province, city, region, addr].join('');
+  const isEqual = (area1: Area, area2: Area) => getAddr(area1) === getAddr(area2);
   const compare = (areas1: Area[], areas2: Area[]) =>
     areas1.filter((area1) => !areas2.some((area2) => isEqual(area1, area2)));
+
   const add = compare(target, soure);
   const remove = compare(soure, target);
   return { add, remove };
@@ -274,6 +300,8 @@ export function formatDate(time: number | Date | string, format: string) {
     HH: () => padZero(date.getHours()),
     m: () => date.getMinutes(),
     mm: () => padZero(date.getMinutes()),
+    s: () => date.getSeconds(),
+    ss: () => padZero(date.getSeconds()),
   };
 
   const replacer = (keyword: string) => {

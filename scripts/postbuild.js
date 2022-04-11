@@ -7,7 +7,7 @@ const dist = path.join(__dirname, '../dist');
 
 fs.emptyDirSync(dist);
 
-fs.copyFileSync(path.join(output, 'server.js'), path.join(dist, 'server.js'));
+fs.copySync(output, dist);
 
 pkgJSON.scripts.start = 'node server.js';
 

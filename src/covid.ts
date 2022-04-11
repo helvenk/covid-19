@@ -1,8 +1,19 @@
-import { sumBy, isEqual, map, uniqBy, sortBy, reject, flatten, compact, size } from 'lodash';
+import {
+  sumBy,
+  isEqual,
+  map,
+  uniqBy,
+  sortBy,
+  reject,
+  flatten,
+  compact,
+  size,
+  find,
+  clone,
+} from 'lodash';
 import { Workbook, Font, Alignment } from 'exceljs';
 import axios from 'axios';
 import {
-  Area,
   fetchData,
   renderTable,
   groupAreas,
@@ -11,10 +22,11 @@ import {
   compareAreas,
   formatDate,
   groupAreaChangesBy,
-  isBrowser,
-  isDev,
   PROD_DATA_URL,
   Cell,
+  CovidData,
+  isLocalDev,
+  isEqualData,
 } from './utils';
 import { getData, saveData } from './cache';
 
@@ -28,44 +40,49 @@ const TableHeaders = [
 
 const TableStyle = 'border="1" style="text-align:center;border-collapse:collapse;"';
 
-export type CovidData = {
-  high: Area[];
-  middle: Area[];
-  update: number;
-  create: number;
-};
-
 export async function getLatestData(limit = 10) {
-  let data = getData<CovidData[]>() ?? [];
-  if (isBrowser && !isDev) {
-    try {
-      const response = await axios.get<CovidData[]>(PROD_DATA_URL, {
-        params: { size: 10 },
-        timeout: 1000 * 10,
-      });
-      data = data.concat(response.data);
-    } catch (err) {}
-  } else {
-    const response = await fetchData();
-    data = reject(data, { update: response.time.getTime() });
-    data.push({
-      high: response.high,
-      middle: response.middle,
-      update: response.time.getTime(),
-      create: Date.now(),
-    });
-  }
+  let data: CovidData[] = [];
 
-  data = uniqBy(data, 'update');
+  try {
+    if (isLocalDev) {
+      data = getData() ?? [];
+      const response = await fetchData();
+      data = reject(data, (item) => !item.download && isEqualData(item, response));
+      data.push(response);
+    } else {
+      const response = await axios.get<CovidData[]>(PROD_DATA_URL, { params: { size: 50 } });
+      data = data.concat(response.data);
+    }
+  } catch (err) {}
+
+  data = uniqBy(data, 'create');
   data = sortBy(data, 'create');
-  data = data.filter((item) => !!item.update);
+  data = data.filter((item) => !!item.create);
   data = data.slice(-limit);
-  saveData(data);
+
+  if (isLocalDev) {
+    saveData(data);
+  }
 
   return data;
 }
 
-export async function statistic(current: CovidData, source?: CovidData) {
+export async function markAsExported(data: CovidData[], create?: number) {
+  const cloned = clone(data);
+  const item = find(cloned, { create });
+  if (item) {
+    item.download = true;
+  }
+  if (isLocalDev) {
+    saveData(cloned);
+  } else {
+    await axios.get<CovidData[]>(PROD_DATA_URL, { params: { download: create } });
+  }
+
+  return cloned;
+}
+
+export function statistic(current: CovidData, source?: CovidData) {
   const highAreas = groupAreas(current.high);
   const middleAreas = groupAreas(current.middle);
   const groups = [
@@ -200,8 +217,11 @@ export async function toExcel(stat: Statistic) {
   sheet.mergeCells('A1:E1');
 
   // 第二行
-  // prettier-ignore
-  const note = `截止${formatDate(createdAt, 'M月D日HH:mm')}，${summary}。目前，国内共有${highSize}个高风险地区，${middleSize}个中风险地区。`;
+  const note = [
+    `截至${formatDate(createdAt, 'M月D日HH:mm')}`,
+    summary ? '，' + summary : '',
+    `。目前，国内共有${highSize}个高风险地区，${middleSize}个中风险地区。`,
+  ].join('');
   const noteRow = sheet.insertRow(2, [note]);
   noteRow.height = Math.max(55, Math.ceil((note.length / wordsOfLine) * rowHeight));
   noteRow.font = baseFont;

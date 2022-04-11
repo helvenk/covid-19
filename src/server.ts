@@ -1,76 +1,123 @@
 import Fastify from 'fastify';
 import fastifyCron from 'fastify-cron';
 import path from 'path';
-import fs from 'fs';
-import { sortBy, uniqBy } from 'lodash';
-import { fetchData, formatDate, PROD_DATA_URL } from './utils';
-import { CovidData } from './covid';
+import { readFileSync, writeFileSync } from 'fs';
+import { isEqual, clone, chain, find } from 'lodash';
+import { fetchData, formatDate, PROD_DATA_URL, CovidData, isEqualData } from './utils';
 
 declare module 'fastify' {
   interface FastifyInstance {
     getData(size?: number): CovidData[];
+    updateData(): Promise<void>;
   }
 }
 
-let __CACHE__: CovidData[];
+class Storage<T> {
+  private store: T;
 
-const file = path.join(__dirname, 'data.json');
+  constructor(private file: string, defaults: T) {
+    this.file = file;
+    this.store = defaults;
+    this.load();
+  }
 
-const fastify = Fastify({ logger: true });
+  load() {
+    try {
+      const text = readFileSync(this.file, 'utf8');
+      this.store = JSON.parse(text);
+    } catch (err) {}
+  }
+
+  sync() {
+    const text = JSON.stringify(this.store, null, 2);
+    writeFileSync(this.file, text);
+  }
+
+  get() {
+    return clone(this.store);
+  }
+
+  update(data: T) {
+    const prev = this.store;
+    this.store = clone(data);
+    if (!isEqual(prev, this.store)) {
+      this.sync();
+    }
+  }
+}
+
+const file = path.join(__dirname, 'db.json');
+const store = new Storage<CovidData[]>(file, []);
+
+const fastify = Fastify({
+  logger: {
+    prettyPrint: {
+      translateTime: 'HH:MM:ss Z',
+      ignore: 'pid,hostname',
+    },
+  },
+});
 
 fastify.register(fastifyCron);
 
-fastify.get(PROD_DATA_URL, ({ query }, reply) => {
-  const limit = (query as any).size && Number((query as any).size);
+fastify.get(PROD_DATA_URL, async (req, reply) => {
+  const { size, download } = req.query as { size?: string; download?: string };
+  const limit = (size && Number(size)) || undefined;
+  const create = (download && Number(download)) || undefined;
+  if (create) {
+    const data = store.get();
+    const item = find(data, { create });
+    if (item) {
+      item.download = true;
+    }
+    store.update(data);
+    return reply.send({});
+  }
+
+  await fastify.updateData();
   reply.send(fastify.getData(limit));
 });
 
-function afterReady() {
-  const read = (limit = 50) => {
-    if (!__CACHE__) {
-      if (!fs.existsSync(file)) {
-        __CACHE__ = [];
-      } else {
-        const data = fs.readFileSync(file, 'utf8');
-        try {
-          __CACHE__ = JSON.parse(data);
-        } catch (err) {
-          __CACHE__ = [];
-        }
-      }
-    }
-
-    return __CACHE__.slice(-limit);
+async function afterReady() {
+  const read = (limit = 100) => {
+    return store.get().slice(-limit);
   };
 
-  const write = (data: CovidData) => {
-    const cache = read();
-    cache.push(data);
-    __CACHE__ = uniqBy(cache, 'update');
-    __CACHE__ = sortBy(cache, 'create');
-    fs.writeFileSync(file, JSON.stringify(__CACHE__));
+  const write = async (data: CovidData) => {
+    const current = read();
+    const next = chain(current)
+      .reject((item) => !item.download && isEqualData(item, data))
+      .concat([data])
+      .uniqBy('create')
+      .sortBy('create')
+      .value();
+    store.update(next);
   };
 
   const onTick = async () => {
-    const res = await fetchData();
-    const data = {
-      ...res,
-      update: res.time.getTime(),
-      create: Date.now(),
-    };
-    write(data);
+    const data = await fetchData();
+    const caches = read();
+    // 错误数据
+    if (caches.some(({ update }) => data.update <= update)) {
+      fastify.log.info('error data update at %s', formatDate(data.update, 'YYYY-MM-DD HH:mm:ss'));
+      return;
+    }
+
     fastify.log.info(
-      'sync covid data, last update at %s',
-      formatDate(data.update, 'YYYY-MM-DD HH:mm'),
+      'sync covid data, high %d, middle %d, last update at %s',
+      data.high.length,
+      data.middle.length,
+      formatDate(data.update, 'YYYY-MM-DD HH:mm:ss'),
     );
+    await write(data);
   };
 
+  fastify.updateData = onTick;
   fastify.getData = read;
 
   fastify.cron.createJob({
     name: 'covid',
-    cronTime: '0 0/6 * * *',
-    start: true,
+    cronTime: '0 0/2 * * *',
     onTick,
   });
 
@@ -79,8 +126,8 @@ function afterReady() {
   onTick();
 }
 
-fastify.listen({ port: 3300 }, (err, address) => {
+fastify.listen({ port: 3300 }, async (err, address) => {
   if (err) throw err;
-  afterReady();
+  await afterReady();
   fastify.log.info(`Server is now listening on ${address}`);
 });
