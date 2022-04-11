@@ -50,9 +50,10 @@ const file = path.join(__dirname, 'db.json');
 const store = new Storage<CovidData[]>(file, []);
 
 const fastify = Fastify({
+  trustProxy: true,
   logger: {
     prettyPrint: {
-      translateTime: 'HH:MM:ss Z',
+      translateTime: 'SYS:HH:MM:ss.l',
       ignore: 'pid,hostname',
     },
   },
