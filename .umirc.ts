@@ -5,6 +5,8 @@ export default defineConfig({
   favicon: './logo.png',
   logo: './logo.png',
   outputPath: 'covid19',
+  base: '/covid-19',
+  publicPath: '/covid-19/',
   // more config: https://d.umijs.org/config
   styles: [
     `.__dumi-default-layout { padding: 24px 64px !important; }
