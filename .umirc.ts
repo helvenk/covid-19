@@ -22,5 +22,9 @@ export default defineConfig({
       target: 'http://m.sh.bendibao.com',
       changeOrigin: true,
     },
+    '/covid': {
+      target: 'http://localhost:3300',
+      changeOrigin: true,
+    },
   },
 });

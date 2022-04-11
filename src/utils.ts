@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { Cheerio, load, Element } from 'cheerio';
-import { entries, groupBy, isEqual, set, omit, pick } from 'lodash';
+import { entries, groupBy, isEqual, set, omit, pick, find, omitBy, isNil } from 'lodash';
 
 export const PROD_DATA_URL = '/covid/data';
 
@@ -9,13 +9,17 @@ export type Area = {
   city: string;
   region: string;
   addr: string;
+  origin?: Omit<Area, 'origin'>;
 };
 
 export type AreaGroup = {
   name: string;
+  level?: keyof Area;
   size: number;
   data: AreaGroup[] | Area[];
 };
+
+export type AreaFix = { data: Area; fix: Partial<Exclude<Area['origin'], undefined>> };
 
 export type Cell = {
   span?: {
@@ -42,6 +46,11 @@ export type CovidData = {
   create: number;
   update: number;
   download?: boolean;
+};
+
+export type CovidDataFixes = {
+  data: CovidData[];
+  fixes: AreaFix[];
 };
 
 export async function fetchData() {
@@ -98,18 +107,43 @@ export async function fetchData() {
   return { create: Date.now(), update: new Date(time).getTime(), high, middle } as CovidData;
 }
 
+export function getAddress(area: Area) {
+  const { province, city, region, addr } = area;
+  return [province, city, region, addr].join('');
+}
+
 export function isEqualData(source: CovidData, target: CovidData) {
   const props = ['high', 'middle'];
   return isEqual(pick(source, props), pick(target, props));
 }
 
+export function isEqualAddress(area1: Area, area2: Area) {
+  return getAddress(area1) === getAddress(area2);
+}
+
+export function mergeAreasWithFixes(areas: Area[], fixes: AreaFix[]) {
+  return areas.map((area) => {
+    const { fix } = find(fixes, ({ data }) => isEqualAddress(data, area)) ?? {};
+    return { ...area, ...omitBy(fix, isNil), origin: area } as Area;
+  });
+}
+
+export function mergeCovidDataFixes(data: CovidData[], fixes: AreaFix[]) {
+  return data.map((item) => ({
+    ...item,
+    high: mergeAreasWithFixes(item.high, fixes),
+    middle: mergeAreasWithFixes(item.middle, fixes),
+  }));
+}
+
 export function groupAreas(data: Area[]): AreaGroup[] {
-  const tree = (data: Area[], keys: (keyof Area)[]): any => {
-    const [key, ...rest] = keys;
-    if (key) {
-      const map = groupBy(data, key);
+  const tree = (data: Area[], levels: (keyof Area)[]): AreaGroup[] | Area[] => {
+    const [level, ...rest] = levels;
+    if (level) {
+      const map = groupBy(data, level);
       return entries(map).map(([name, data]) => ({
         name,
+        level,
         size: data.length,
         data: tree(data, rest),
       }));
@@ -118,7 +152,7 @@ export function groupAreas(data: Area[]): AreaGroup[] {
     return data;
   };
 
-  return tree(data, ['province', 'city', 'region']);
+  return tree(data, ['province', 'city', 'region']) as any;
 }
 
 export function parseRows(groups: AreaGroup[]) {
@@ -190,11 +224,9 @@ export function compareAreas(soure?: Area[], target?: Area[]) {
   if (!soure || !target) {
     return { add: [], remove: [] };
   }
-  const getAddr = ({ province, city, region, addr }: Area) =>
-    [province, city, region, addr].join('');
-  const isEqual = (area1: Area, area2: Area) => getAddr(area1) === getAddr(area2);
+
   const compare = (areas1: Area[], areas2: Area[]) =>
-    areas1.filter((area1) => !areas2.some((area2) => isEqual(area1, area2)));
+    areas1.filter((area1) => !areas2.some((area2) => isEqualAddress(area1, area2)));
 
   const add = compare(target, soure);
   const remove = compare(soure, target);

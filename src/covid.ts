@@ -27,10 +27,14 @@ import {
   CovidData,
   isLocalDev,
   isEqualData,
+  AreaFix,
+  mergeCovidDataFixes,
+  getAddress,
+  CovidDataFixes,
 } from './utils';
 import { getData, saveData } from './cache';
 
-const TableHeaders = [
+export const TableHeaders = [
   { key: 'level', value: '风险等级', width: 15 },
   { key: 'province', value: '省', width: 12 },
   { key: 'city', value: '市', width: 12 },
@@ -38,20 +42,28 @@ const TableHeaders = [
   { key: 'addr', value: '风险地区', width: 60 },
 ];
 
-const TableStyle = 'border="1" style="text-align:center;border-collapse:collapse;"';
+export const TableStyle = 'border="1" style="text-align:center;border-collapse:collapse;"';
 
 export async function getLatestData(limit = 10) {
   let data: CovidData[] = [];
+  let fixes: AreaFix[] = [];
 
   try {
     if (isLocalDev) {
       data = getData() ?? [];
+
+      if (!Array.isArray(data)) {
+        fixes = (data as any).fixes;
+        data = (data as any).data;
+      }
+
       const response = await fetchData();
       data = reject(data, (item) => !item.download && isEqualData(item, response));
       data.push(response);
     } else {
-      const response = await axios.get<CovidData[]>(PROD_DATA_URL, { params: { size: 50 } });
-      data = data.concat(response.data);
+      const response = await axios.get<CovidDataFixes>(PROD_DATA_URL, { params: { size: 50 } });
+      data = response.data.data;
+      fixes = response.data.fixes;
     }
   } catch (err) {}
 
@@ -61,10 +73,19 @@ export async function getLatestData(limit = 10) {
   data = data.slice(-limit);
 
   if (isLocalDev) {
-    saveData(data);
+    saveData({ data, fixes });
   }
 
-  return data;
+  return mergeCovidDataFixes(data, fixes);
+}
+
+export async function syncAreaFixes(fixes: AreaFix[] = []) {
+  if (isLocalDev) {
+    const cache = (getData() as { fixes: AreaFix[] }) ?? {};
+    saveData({ ...cache, fixes: uniqBy([...cache.fixes, ...fixes], (o) => getAddress(o.data)) });
+  } else {
+    await axios.post(PROD_DATA_URL, { fixes });
+  }
 }
 
 export async function markAsExported(data: CovidData[], create?: number) {
@@ -76,7 +97,7 @@ export async function markAsExported(data: CovidData[], create?: number) {
   if (isLocalDev) {
     saveData(cloned);
   } else {
-    await axios.get<CovidData[]>(PROD_DATA_URL, { params: { download: create } });
+    await axios.get(PROD_DATA_URL, { params: { download: create } });
   }
 
   return cloned;

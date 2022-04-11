@@ -2,18 +2,27 @@ import Fastify from 'fastify';
 import fastifyCron from 'fastify-cron';
 import path from 'path';
 import { readFileSync, writeFileSync } from 'fs';
-import { isEqual, clone, chain, find } from 'lodash';
-import { fetchData, formatDate, PROD_DATA_URL, CovidData, isEqualData } from './utils';
+import { isEqual, clone, chain, find, isArray, uniqBy } from 'lodash';
+import {
+  fetchData,
+  formatDate,
+  PROD_DATA_URL,
+  CovidData,
+  isEqualData,
+  AreaFix,
+  getAddress,
+  CovidDataFixes,
+} from './utils';
 
 declare module 'fastify' {
   interface FastifyInstance {
-    getData(size?: number): CovidData[];
+    getData(size?: number): CovidDataFixes;
     updateData(): Promise<void>;
   }
 }
 
 class Storage<T> {
-  private store: T;
+  store: T;
 
   constructor(private file: string, defaults: T) {
     this.file = file;
@@ -47,7 +56,11 @@ class Storage<T> {
 }
 
 const file = path.join(__dirname, 'db.json');
-const store = new Storage<CovidData[]>(file, []);
+const store = new Storage<CovidDataFixes>(file, { data: [], fixes: [] });
+// 兼容旧数据
+if (isArray(store.store)) {
+  store.store = { data: store.store, fixes: [] };
+}
 
 const fastify = Fastify({
   trustProxy: true,
@@ -61,17 +74,43 @@ const fastify = Fastify({
 
 fastify.register(fastifyCron);
 
-fastify.get(PROD_DATA_URL, async (req, reply) => {
+fastify.all(PROD_DATA_URL, async (req, reply) => {
   const { size, download } = req.query as { size?: string; download?: string };
+  const { fixes } = (req.body as { fixes: AreaFix[] }) ?? {};
+
   const limit = (size && Number(size)) || undefined;
   const create = (download && Number(download)) || undefined;
   if (create) {
     const data = store.get();
-    const item = find(data, { create });
+    const item = find(data.data, { create });
     if (item) {
       item.download = true;
     }
     store.update(data);
+    return reply.send({});
+  }
+
+  if (fixes) {
+    const data = store.get();
+    const nextFixMap: Record<string, AreaFix> = {};
+    const mergeFixes = [...data.fixes, ...fixes];
+
+    mergeFixes.forEach((item) => {
+      const key = getAddress(item.data);
+      if (!nextFixMap[key]) {
+        nextFixMap[key] = item;
+      } else {
+        Object.assign(nextFixMap[key].fix, item.fix);
+      }
+
+      const { fix, data } = nextFixMap[key];
+      const afterKey = getAddress({ ...data, ...fix });
+      if (key === afterKey) {
+        delete nextFixMap[key];
+      }
+    });
+
+    store.update({ ...data, fixes: Object.values(nextFixMap) });
     return reply.send({});
   }
 
@@ -81,25 +120,26 @@ fastify.get(PROD_DATA_URL, async (req, reply) => {
 
 async function afterReady() {
   const read = (limit = 100) => {
-    return store.get().slice(-limit);
+    const { data, fixes } = store.get();
+    return { data: data.slice(-limit), fixes };
   };
 
   const write = async (data: CovidData) => {
     const current = read();
-    const next = chain(current)
+    const next = chain(current.data)
       .reject((item) => !item.download && isEqualData(item, data))
       .concat([data])
       .uniqBy('create')
       .sortBy('create')
       .value();
-    store.update(next);
+    store.update({ ...current, data: next });
   };
 
   const onTick = async () => {
     const data = await fetchData();
     const caches = read();
     // 错误数据
-    if (caches.some(({ update }) => data.update <= update)) {
+    if (caches.data.some(({ update }) => data.update <= update)) {
       fastify.log.info('error data update at %s', formatDate(data.update, 'YYYY-MM-DD HH:mm:ss'));
       return;
     }
