@@ -8,6 +8,9 @@ export default defineConfig({
   base: '/covid-19',
   publicPath: '/covid-19/',
   // more config: https://d.umijs.org/config
+  define: {
+    'process.env.GH_PAGES': JSON.stringify(process.env.GH_PAGES),
+  },
   styles: [
     `.__dumi-default-layout { padding: 24px 64px !important; }
     .__dumi-default-menu { display: none !important; }
