@@ -5,9 +5,10 @@
   "scripts": {
     "start": "GH_PAGES=1 dumi dev",
     "build": "dumi build",
+    "build:gh": "GH_PAGES=1 dumi build",
     "build:server": "father-build",
     "postbuild:server": "node scripts/postbuild",
-    "deploy": "GH_PAGES=1 dumi build && gh-pages -d output",
+    "deploy": "npm run build:gh && gh-pages -d output",
     "prettier": "prettier --write \"**/*.{js,jsx,tsx,ts,less,md,json}\"",
     "test": "umi-test",
     "test:coverage": "umi-test --coverage",
