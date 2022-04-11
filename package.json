@@ -8,7 +8,7 @@
     "docs:deploy": "gh-pages -d covid19",
     "build": "father-build",
     "postbuild": "node scripts/postbuild",
-    "deploy": "npm run docs:build && npm run docs:deploy",
+    "deploy": "GH_PAGES=1 npm run docs:build && npm run docs:deploy",
     "prettier": "prettier --write \"**/*.{js,jsx,tsx,ts,less,md,json}\"",
     "test": "umi-test",
     "test:coverage": "umi-test --coverage",

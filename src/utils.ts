@@ -38,7 +38,9 @@ export const isDev = typeof process !== 'undefined' && process.env.NODE_ENV === 
 
 export const isBrowser = typeof window !== 'undefined';
 
-export const isLocalDev = isDev && isBrowser;
+export const isGithubPages = typeof process !== 'undefined' && process.env.GH_PAGES === '1';
+
+export const isLocalDev = isGithubPages || (isDev && isBrowser);
 
 export type CovidData = {
   high: Area[];
