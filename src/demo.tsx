@@ -58,15 +58,16 @@ function renderTable(
               const style = isNew ? { color: 'red' } : {};
               const borderStyle = { color: '#f759ab', border: '3px dashed' };
               const isArea = 'addr' in origin;
+              const lastCellArea = last(col)!.origin as Area;
 
               if (markEmpty) {
-                if (isArea && !origin.region) {
+                if (isArea && (!origin.region || !origin.addr)) {
                   Object.assign(style, borderStyle, { borderLeftColor: 'transparent' });
                   return (
                     <td key={j} rowSpan={rowspan} colSpan={colspan} style={style}>
                       <EditCell
-                        defaultValue={text}
-                        onChange={(value) => onEdit(last(col)?.origin, ['addr', value])}
+                        defaultValue={origin.addr}
+                        onChange={(value) => onEdit(lastCellArea, ['addr', value])}
                       />
                     </td>
                   );
@@ -76,12 +77,13 @@ function renderTable(
                   Object.assign(style, { display: 'none' });
                 }
 
-                if (!isArea && !origin.name && origin.level === 'region') {
+                if (!isArea && origin.level === 'region' && (!origin.name || !lastCellArea.addr)) {
                   Object.assign(style, borderStyle, { borderRightColor: 'transparent' });
                   return (
                     <td key={j} colSpan={colspan} style={style}>
                       <EditCell
-                        onChange={(value) => onEdit(last(col)?.origin, [origin.level!, value])}
+                        defaultValue={origin.name}
+                        onChange={(value) => onEdit(lastCellArea, [origin.level!, value])}
                       />
                     </td>
                   );
@@ -127,7 +129,7 @@ export default () => {
         options,
         data,
         current,
-        emptySize: sumBy([...current.high, ...current.middle], (o) => Number(!o.region)),
+        emptySize: sumBy([...current.high, ...current.middle], (o) => Number(!o.region || !o.addr)),
       });
       setSelected(prev);
       setLoading(false);

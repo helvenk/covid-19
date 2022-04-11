@@ -12,6 +12,7 @@ import {
   AreaFix,
   getAddress,
   CovidDataFixes,
+  isEqualAddress,
 } from './utils';
 
 declare module 'fastify' {
@@ -104,8 +105,8 @@ fastify.all(PROD_DATA_URL, async (req, reply) => {
       }
 
       const { fix, data } = nextFixMap[key];
-      const afterKey = getAddress({ ...data, ...fix });
-      if (key === afterKey) {
+      const nextData = { ...data, ...fix };
+      if (isEqualAddress(data, nextData, true)) {
         delete nextFixMap[key];
       }
     });

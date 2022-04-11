@@ -79,14 +79,19 @@ export async function fetchData() {
             .next()
             .find('li>span')
             .each((_, el) => {
-              const address = $(el).text().replace(cityReg, '');
-              let region = address.match(/(\S+?[区县市镇])/)?.[1] ?? '';
+              let address = $(el).text().replace(cityReg, '');
+              let region = address.match(/(\S+?[市县区镇])/)?.[1] ?? '';
+
+              // 存在括号
               if (/[(（]/.test(region)) {
                 region = '';
               }
-              if (region.endsWith('小区')) {
+
+              // 以 小区、服务区结尾
+              if (/(小区|服务区)$/.test(region)) {
                 region = '';
               }
+
               results.push({
                 province,
                 city,
@@ -117,8 +122,15 @@ export function isEqualData(source: CovidData, target: CovidData) {
   return isEqual(pick(source, props), pick(target, props));
 }
 
-export function isEqualAddress(area1: Area, area2: Area) {
-  return getAddress(area1) === getAddress(area2);
+export function isEqualAddress(area1: Area, area2: Area, deep = false) {
+  return (
+    getAddress(area1) === getAddress(area2) &&
+    (!deep ||
+      isEqual(
+        pick(area1, ['province', 'city', 'region', 'addr']),
+        pick(area2, ['province', 'city', 'region', 'addr']),
+      ))
+  );
 }
 
 export function mergeAreasWithFixes(areas: Area[], fixes: AreaFix[]) {

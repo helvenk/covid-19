@@ -1,16 +1,4 @@
-import {
-  sumBy,
-  isEqual,
-  map,
-  uniqBy,
-  sortBy,
-  reject,
-  flatten,
-  compact,
-  size,
-  find,
-  clone,
-} from 'lodash';
+import { sumBy, map, uniqBy, sortBy, reject, flatten, compact, size, find, clone } from 'lodash';
 import { Workbook, Font, Alignment } from 'exceljs';
 import axios from 'axios';
 import {
@@ -31,6 +19,8 @@ import {
   mergeCovidDataFixes,
   getAddress,
   CovidDataFixes,
+  isEqualAddress,
+  Area,
 } from './utils';
 import { getData, saveData } from './cache';
 
@@ -160,7 +150,7 @@ export function statistic(current: CovidData, source?: CovidData) {
     const groupRows = parseRows(groups);
     groupRows.forEach((row) => {
       row.forEach((cell) => {
-        if (totalAdd.find((area) => isEqual(area, cell.origin))) {
+        if (totalAdd.find((area) => isEqualAddress(area, cell.origin as Area))) {
           cell.new = true;
         }
       });
