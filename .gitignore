@@ -11,8 +11,8 @@
 /es
 /docs-dist
 /lib
-/covid19
 /dist
+/output
 
 # misc
 .DS_Store

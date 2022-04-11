@@ -1,6 +1,8 @@
 # covid-19
 
-疫情数据统计，数据来源于 http://m.sh.bendibao.com/news/gelizhengce/fengxianmingdan.php
+疫情数据统计报表。
+
+数据来源于 http://m.sh.bendibao.com/news/gelizhengce/fengxianmingdan.php
 
 ## Getting Started
 

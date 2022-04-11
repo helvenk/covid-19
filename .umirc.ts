@@ -4,7 +4,7 @@ export default defineConfig({
   title: '疫情数据',
   favicon: './logo.png',
   logo: './logo.png',
-  outputPath: 'covid19',
+  outputPath: 'output',
   base: '/covid-19',
   publicPath: '/covid-19/',
   // more config: https://d.umijs.org/config

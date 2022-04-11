@@ -21,3 +21,6 @@ const { spawnSync } = require('child_process');
 spawnSync('npx', ['yarn'], { shell: true, stdio: 'inherit' });`,
 );
 fs.writeFileSync(path.join(dist, 'server.js'), update);
+
+fs.removeSync(path.join(__dirname, '../lib'));
+fs.removeSync(path.join(__dirname, '../es'));
