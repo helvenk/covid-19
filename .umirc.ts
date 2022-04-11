@@ -1,13 +1,22 @@
 import { defineConfig } from 'dumi';
 
 export default defineConfig({
-  title: 'covid-19',
-  favicon:
-    'https://user-images.githubusercontent.com/9554297/83762004-a0761b00-a6a9-11ea-83b4-9c8ff721d4b8.png',
-  logo: 'https://user-images.githubusercontent.com/9554297/83762004-a0761b00-a6a9-11ea-83b4-9c8ff721d4b8.png',
-  outputPath: 'docs-dist',
+  title: '疫情数据',
+  favicon: './logo.png',
+  logo: './logo.png',
+  outputPath: 'covid19',
   // more config: https://d.umijs.org/config
-
+  styles: [
+    `.__dumi-default-layout { padding: 24px 64px !important; }
+    .__dumi-default-menu { display: none !important; }
+    .__dumi-default-navbar { display: none !important; }
+    .__dumi-default-layout-footer-meta { display: none !important; }
+    @media only screen and (max-width: 767px) {.__dumi-default-layout { margin-top: -42px; } }`,
+  ],
+  exportStatic: {
+    dynamicRoot: true,
+    htmlSuffix: true,
+  },
   proxy: {
     '/news': {
       target: 'http://m.sh.bendibao.com',
