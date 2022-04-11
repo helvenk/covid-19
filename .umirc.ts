@@ -11,6 +11,8 @@ export default defineConfig({
   define: {
     'process.env.GH_PAGES': process.env.GH_PAGES,
   },
+  analytics:
+    process.env.NODE_ENV === 'production' ? { baidu: 'be584cd8a5ed2711e14d2ec2802d8d0a' } : false,
   styles: [
     `.__dumi-default-layout { padding: 24px 64px !important; }
     .__dumi-default-menu { display: none !important; }
