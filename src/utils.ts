@@ -57,7 +57,7 @@ export type CovidDataFixes = {
 
 export async function fetchData() {
   const url = 'http://m.sh.bendibao.com/news/gelizhengce/fengxianmingdan.php';
-  const proxy = isGithubPages ? 'https://cors.bridged.cc/' : '';
+  const proxy = isGithubPages ? 'https://cors.eu.org/' : '';
   const finalUrl = isDev ? url.replace(/https?:\/\/[a-z\.]*?\//, '/') : url;
 
   const result = await axios.get<string>(proxy + finalUrl, {
