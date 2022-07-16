@@ -13,6 +13,7 @@
 /lib
 /dist
 /output
+/covid19
 
 # misc
 .DS_Store
