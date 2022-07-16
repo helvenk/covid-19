@@ -107,6 +107,48 @@ function renderTable(
   );
 }
 
+function renderDiff({ changes }: Statistic) {
+  const props = { border: '1' };
+
+  const renderArea = (add: string[] = [], remove: string[] = []) => {
+    return (
+      <td>
+        {remove.map((o) => (
+          <div key={o} style={{ color: '#aaa', textDecoration: 'line-through' }}>
+            {o}
+          </div>
+        ))}
+        {add.map((o) => (
+          <div key={o} style={{ color: 'red' }}>
+            {o}
+          </div>
+        ))}
+      </td>
+    );
+  };
+
+  return (
+    <table {...props} style={{ textAlign: 'center', borderCollapse: 'collapse', width: '100%' }}>
+      <thead>
+        <tr>
+          <td style={{ width: 100 }}>省/市</td>
+          <td>高风险地区</td>
+          <td>中风险地区</td>
+        </tr>
+      </thead>
+      <tbody>
+        {Object.entries(changes).map(([p, { high = {}, middle = {} }]) => (
+          <tr key={p}>
+            <td>{p}</td>
+            {renderArea(high.add, high.remove)}
+            {renderArea(middle.add, middle.remove)}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export default () => {
   const [stat, setStat] = useState<
     Statistic & { options: CovidData[]; data: CovidData[]; current: CovidData; emptySize: number }
@@ -115,6 +157,8 @@ export default () => {
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState({ markEmpty: false });
   const modifiedAreas = useRef<AreaFix[]>([]);
+
+  const [diff, setDiff] = useState<Statistic>();
 
   useEffect(() => {
     const compare = async () => {
@@ -192,6 +236,10 @@ export default () => {
     }
   };
 
+  const handleDiff = () => {
+    setDiff(stat);
+  };
+
   return (
     <div style={{ margin: 'auto', maxWidth: 1080 }}>
       {stat && (
@@ -219,6 +267,9 @@ export default () => {
               ))}
             </select>
           </div>
+          <button style={{ whiteSpace: 'nowrap', margin: '0 8px' }} onClick={handleDiff}>
+            查看变化
+          </button>
           <button style={{ whiteSpace: 'nowrap' }} onClick={handleExport}>
             导出为 Excel
           </button>
@@ -253,6 +304,36 @@ export default () => {
           )}
           <div id="table">{renderTable(stat.groupRows, { ...config, onEdit: handleEdit })}</div>
         </>
+      )}
+      {diff && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          onClick={() => setDiff(undefined)}
+        >
+          <div
+            style={{
+              width: '60vw',
+              background: 'white',
+              height: '70vh',
+              padding: 24,
+              borderRadius: 10,
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {renderDiff(stat!)}
+          </div>
+        </div>
       )}
     </div>
   );

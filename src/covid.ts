@@ -1,4 +1,16 @@
-import { sumBy, map, uniqBy, sortBy, reject, flatten, compact, size, find, clone } from 'lodash';
+import {
+  sumBy,
+  map,
+  uniqBy,
+  sortBy,
+  reject,
+  flatten,
+  compact,
+  size,
+  find,
+  clone,
+  mapValues,
+} from 'lodash';
 import { Workbook, Font, Alignment } from 'exceljs';
 import axios from 'axios';
 import {
@@ -159,6 +171,12 @@ export function statistic(current: CovidData, source?: CovidData) {
     return groupRows;
   };
 
+  const getChanges = () => {
+    return mapValues(provinceChanges, (changes) =>
+      mapValues(changes, (item) => mapValues(item, (o) => map(o, 'addr'))),
+    );
+  };
+
   return {
     highSize: current.high.length,
     middleSize: current.middle.length,
@@ -166,6 +184,7 @@ export function statistic(current: CovidData, source?: CovidData) {
     createdAt: new Date(current.create),
     groups,
     groupRows: getRows(),
+    changes: getChanges(),
     summary: getDesc(),
   };
 }
